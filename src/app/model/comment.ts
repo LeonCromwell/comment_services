@@ -39,5 +39,17 @@ commentSchema.virtual("updatedAtUnix").get(function () {
 commentSchema.set("toObject", { virtuals: true });
 commentSchema.set("toJSON", { virtuals: true });
 
-const Comment = mongoose.model("Comment", commentSchema);
+const Comment = mongoose.model("comments", commentSchema);
 export default Comment;
+
+
+
+export interface IComment {
+  _id: string;
+  text: string;
+  author: string;
+  videoId: string;
+  createdAtUnix: number;
+  updatedAtUnix: number;
+  replies: IComment[] | string[]; // Đây có thể là một mảng các ObjectId hoặc mảng các IComment tùy thuộc vào cách bạn truy vấn
+}

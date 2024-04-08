@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 
-import Comment from "../model/comment";
+import Comment, {IComment} from "../model/comment";
+import getCommentReplies from "../../utils/getCommentReplie";
 
 interface CommentData {
   _id?: string;
@@ -13,69 +14,18 @@ interface CommentData {
   replies?: string[];
 }
 
-// Định nghĩa type cho comment (điều chỉnh tùy ý theo schema của bạn)
-interface IComment {
-  _id: string;
-  text: string;
-  author: string;
-  videoId: string;
-  createdAtUnix: number;
-  updatedAtUnix: number;
-  replies: IComment[] | string[]; // Đây có thể là một mảng các ObjectId hoặc mảng các IComment tùy thuộc vào cách bạn truy vấn
-}
-
-async function getCommentReplies(
-  commentId: mongoose.Types.ObjectId
-): Promise<IComment[]> {
-  const comment = await Comment.findById(commentId)
-    .populate({
-      path: "replies",
-      populate: { path: "replies" }, // populate nếu có replies bên trong
-    })
-    .exec();
-
-  if (!comment) {
-    return [];
-  }
-
-  const commentObj = comment.toObject() as IComment;
-
-  // Nếu có replies, đệ quy để lấy replies của chúng
-  if (commentObj.replies.length > 0) {
-    const replies: IComment[][] = await Promise.all(
-      commentObj.replies.map(async (replyId) => {
-        return await getCommentReplies(
-          replyId as unknown as mongoose.Types.ObjectId
-        );
-      })
-    );
-
-    // Flatten the nested array of replies into a single array
-    const flattenedReplies: IComment[] = replies.flat();
-
-    // Tạo một mảng mới không chứa replies lồng nhau
-    return [commentObj, ...flattenedReplies];
-  }
-
-  return [commentObj]; // Comment không có reply, trả về mình nó
-}
-
 class CommentController {
   public async getCommentsByIdVideo(req: Request, res: Response) {
     const idVideo = req.params.idVideo;
     try {
       const comments: IComment[] = await Comment.find({
         videoId: idVideo,
-      }).exec();
-
-      // Lấy tất cả replies cho từng comment
+      });
       const commentsWithReplies = await Promise.all(
         comments.map((comment) => {
-          return getCommentReplies(comment._id);
+          return getCommentReplies(comment._id as unknown as mongoose.Types.ObjectId);
         })
       );
-
-      // Phẳng mảng kết quả từ đệ quy
       const flatCommentsWithReplies = commentsWithReplies.flat();
 
       res.status(200).json(flatCommentsWithReplies);
@@ -108,6 +58,7 @@ class CommentController {
   }
 
   //create comment
+  // [POST] /createComment
   public async createComment(req: Request, res: Response) {
     try {
       const CommentData: CommentData = {
